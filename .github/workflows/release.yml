@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.20'
+          otp-version: '29'
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Compile project
+        run: MIX_ENV=prod mix compile
+
+      - name: Run tests before release
+        run: MIX_ENV=test mix test
+
+      - name: Create release notes
+        id: release_notes
+        run: |
+          cat > RELEASE_NOTES.md << 'EOF'
+          ## Installation
+
+          Add to your `mix.exs`:
+
+          ```elixir
+          def deps do
+            [
+              {:makeup_lmml, "~> ${{ steps.version.outputs.version }}"}
+            ]
+          end
+          ```
+
+          Then run:
+
+          ```bash
+          mix deps.get
+          ```
+
+          ## Usage
+
+          Once installed, ExDoc and any other tool using Makeup will automatically
+          syntax-highlight LMML narratives and Markdown documents (tagged with `lmml`, `markdown`, or `md` as the language).
+
+          ```elixir
+          alias Makeup.Lexers.LmmlLexer
+          LmmlLexer.lex("""
+          # Project Context
+
+          Please review @diagram.png before the meeting.
+
+          @@@settings.yaml
+          model: gpt-5
+          temperature: 0.2
+          @@@
+          """)
+          ```
+
+          ## What's Changed
+
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md) for detailed changes.
+
+          ## Documentation
+
+          - [HexDocs](https://hexdocs.pm/makeup_lmml)
+          - [LMML Specification](https://github.com/Oeditus/lmml)
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') || contains(github.ref, 'dev') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-hex:
+    name: Publish to Hex.pm
+    runs-on: ubuntu-latest
+    needs: build
+    if: "!contains(github.ref, 'alpha') && !contains(github.ref, 'beta') && !contains(github.ref, 'rc') && !contains(github.ref, 'dev')"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.20'
+          otp-version: '29'
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Publish to Hex
+        run: mix hex.publish --yes
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+
+  notify:
+    name: Notify Release
+    runs-on: ubuntu-latest
+    needs: [build, publish-hex]
+    if: always()
+    steps:
+      - name: Check release status
+        run: |
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "Build failed!"
+            exit 1
+          fi
+
+          if [ "${{ needs.publish-hex.result }}" == "skipped" ]; then
+            echo "Hex publishing skipped (pre-release)"
+          elif [ "${{ needs.publish-hex.result }}" != "success" ]; then
+            echo "Hex publishing failed!"
+            exit 1
+          fi
+
+          echo "Release completed successfully!"
+          echo "Download artifacts from: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"

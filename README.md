@@ -2,7 +2,7 @@
 
 # MakeupLmml
 
-[![CI](https://github.com/cure-lang/makeup_lmml/actions/workflows/ci.yml/badge.svg)](https://github.com/cure-lang/makeup_lmml/actions/workflows/ci.yml)
+[![CI](https://github.com/Oeditus/makeup_lmml/actions/workflows/ci.yml/badge.svg)](https://github.com/Oeditus/makeup_lmml/actions/workflows/ci.yml)
 [![Hex.pm](https://img.shields.io/hexpm/v/makeup_lmml.svg)](https://hex.pm/packages/makeup_lmml)
 [![Documentation](https://img.shields.io/badge/docs-hexdocs-purple.svg)](https://hexdocs.pm/makeup_lmml)
 [![License](https://img.shields.io/hexpm/l/makeup_lmml.svg)](LICENSE)

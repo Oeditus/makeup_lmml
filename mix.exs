@@ -2,8 +2,8 @@ defmodule MakeupLmml.MixProject do
   use Mix.Project
 
   @app :makeup_lmml
-  @version "0.1.0"
-  @source_url "https://github.com/cure-lang/makeup_lmml"
+  @version "0.1.1"
+  @source_url "https://github.com/Oeditus/makeup_lmml"
 
   def project do
     [
